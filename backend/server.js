@@ -1,96 +1,80 @@
+/**
+ * SafeRoutePlanner — Node.js proxy server
+ * 
+ * Now a thin proxy to the Python Flask API.
+ * All ML scoring and routing happens in Flask (app.py).
+ * 
+ * Why keep this at all?
+ * - Frontend already talks to port 3001
+ * - Vite proxy config points here
+ * - No frontend changes needed
+ */
+
 import express from "express";
 import cors from "cors";
-import { dijkstra, getLocations, NODES, GRAPH } from "./graph.js";
 
-const app  = express();
-const PORT = 3001;
+const app       = express();
+const PORT      = 3001;
+const FLASK_URL = "http://localhost:5000";
 
 app.use(cors());
 app.use(express.json());
 
-// ─────────────────────────────────────────────────────────────
-//  GET /locations
-//  Returns all available nodes (intersections/landmarks)
-// ─────────────────────────────────────────────────────────────
-app.get("/locations", (_req, res) => {
-  res.json({ success: true, locations: getLocations() });
-});
-
-// ─────────────────────────────────────────────────────────────
-//  POST /route
-//  Body: { start: "VJTI", end: "Dadar_W_Station" }
-//  Returns the safest route between two locations
-// ─────────────────────────────────────────────────────────────
-app.post("/route", (req, res) => {
-  const { start, end } = req.body;
-
-  if (!start || !end) {
-    return res.status(400).json({ success: false, error: "start and end are required." });
-  }
-  if (start === end) {
-    return res.status(400).json({ success: false, error: "Start and end cannot be the same." });
-  }
-
+// ── Generic proxy helper ──────────────────────────────────────
+async function proxyToFlask(req, res, path, method = "GET", body = null) {
   try {
-    const result = dijkstra(start, end);
-    if (!result) {
-      return res.status(404).json({ success: false, error: "No path found between these locations." });
-    }
+    const url = `${FLASK_URL}${path}`;
+    const options = {
+      method,
+      headers: { "Content-Type": "application/json" },
+    };
+    if (body) options.body = JSON.stringify(body);
 
-    // Attach lat/lng for each node in the path (used by the map)
-    const pathCoords = result.path.map((id) => ({
-      id,
-      name: NODES[id].name,
-      lat:  NODES[id].lat,
-      lng:  NODES[id].lng,
-    }));
-
-    res.json({ success: true, route: { ...result, pathCoords } });
+    const response = await fetch(url, options);
+    const data     = await response.json();
+    res.status(response.status).json(data);
   } catch (err) {
-    res.status(400).json({ success: false, error: err.message });
+    // Flask not running
+    res.status(503).json({
+      error: "Python ML backend is not running. Start it with: python ml/app.py",
+    });
+  }
+}
+
+// ── Routes ────────────────────────────────────────────────────
+
+// Health check — checks both Node and Flask
+app.get("/", async (_req, res) => {
+  try {
+    const r    = await fetch(`${FLASK_URL}/api/health`);
+    const data = await r.json();
+    res.json({ nodeStatus: "running", flaskStatus: data.status });
+  } catch {
+    res.json({ nodeStatus: "running", flaskStatus: "offline — run python ml/app.py" });
   }
 });
 
-// ─────────────────────────────────────────────────────────────
-//  GET /safety/:nodeId
-//  Returns all edges from a given node with their safety data
-// ─────────────────────────────────────────────────────────────
-app.get("/safety/:nodeId", (req, res) => {
-  const { nodeId } = req.params;
-
-  if (!NODES[nodeId]) {
-    return res.status(404).json({ success: false, error: "Node not found." });
-  }
-
-  const edges = GRAPH[nodeId].map((e) => ({
-    toId:       e.to,
-    toName:     NODES[e.to].name,
-    distanceKm: e.distanceKm,
-    crime:      e.crime,
-    lighting:   e.lighting,
-    crowd:      e.crowd,
-    safetyScore: e.safetyScore,
-  }));
-
-  res.json({ success: true, nodeId, nodeName: NODES[nodeId].name, edges });
+// POST /api/route — forward to Flask
+// Body: { start: "VJTI Mumbai", end: "Dadar Station Mumbai" }
+app.post("/api/route", (req, res) => {
+  proxyToFlask(req, res, "/api/route", "POST", req.body);
 });
 
-// ─────────────────────────────────────────────────────────────
-//  GET /graph
-//  Returns full graph (for debug / visualization)
-// ─────────────────────────────────────────────────────────────
-app.get("/graph", (_req, res) => {
-  res.json({ success: true, nodes: getLocations(), graph: GRAPH });
+// GET /api/geocode?q=VJTI Mumbai — forward to Flask
+app.get("/api/geocode", (req, res) => {
+  const q = req.query.q || "";
+  proxyToFlask(req, res, `/api/geocode?q=${encodeURIComponent(q)}`);
 });
 
-// ─────────────────────────────────────────────────────────────
-//  Health check
-// ─────────────────────────────────────────────────────────────
-app.get("/", (_req, res) => {
-  res.json({ status: "Safe Route Planner API is running 🛡️" });
+// Keep /api/locations for backwards compat — returns empty since
+// we no longer have fixed locations (user types anything now)
+app.get("/api/locations", (_req, res) => {
+  res.json({ success: true, locations: [] });
 });
 
 app.listen(PORT, () => {
-  console.log(`\n🛡️  Safe Route Planner API`);
-  console.log(`   Running at http://localhost:${PORT}\n`);
+  console.log(`\n🛡️  SafeRoutePlanner Node proxy`);
+  console.log(`   http://localhost:${PORT}`);
+  console.log(`   Forwarding ML requests → ${FLASK_URL}\n`);
+  console.log(`   Make sure Flask is running: python ml/app.py\n`);
 });

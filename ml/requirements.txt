@@ -1,0 +1,7 @@
+flask
+flask-cors
+osmnx==1.9.3
+geopandas
+networkx
+shapely
+numpy
