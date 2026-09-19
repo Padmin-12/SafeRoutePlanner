@@ -329,6 +329,33 @@ which again failed because `backend` is not available as the top-level package i
 
 ---
 
+# Deployment Issue 5 — Missing production dependencies for graph spatial search
+
+## Symptom
+
+After startup and import issues were resolved, `/api/health` returned `200 OK`. However, `/api/route` failed with:
+
+```text
+ValueError: scikit-learn must be installed as an optional dependency to search an unprojected graph
+```
+
+## Root Cause
+
+`ox.distance.nearest_nodes(G, X, Y)` performs nearest node lookup for origin and destination coordinates:
+- If graph `G` is unprojected (geographic coordinates in `EPSG:4326`, as is `mumbai_benchmark.pickle`), OSMnx uses `sklearn.neighbors.BallTree` with haversine distance metric.
+- If graph `G` is projected, OSMnx uses `scipy.spatial.cKDTree` with euclidean distance metric.
+
+In the local Anaconda environment, `scikit-learn` and `scipy` were already installed globally, masking this dependency during local execution. On Vercel, serverless containers install only dependencies explicitly listed in `backend/requirements.txt`.
+
+## Resolution
+
+Audited all backend runtime imports and OSMnx optional dependencies:
+- Added `scikit-learn>=1.3.0` to `backend/requirements.txt`.
+- Added `scipy>=1.11.0` to `backend/requirements.txt` to cover both projected and unprojected spatial indexing.
+- Verified that visualization/raster optional dependencies (`matplotlib`, `folium`, `rasterio`, `gdal`) are not called by backend endpoints and do not need to be installed.
+
+---
+
 # Deployment History / Git Context
 
 There was also a Git repository synchronization issue during deployment.
