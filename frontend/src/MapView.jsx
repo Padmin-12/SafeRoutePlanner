@@ -1,17 +1,13 @@
 import { MapContainer, TileLayer, Polyline, CircleMarker, Popup, useMap } from "react-leaflet";
 import { useEffect } from "react";
+import { safetyLabel, barColor, riskBarColor } from "./utils";
 
-// ─── Safety colour map ────────────────────────────────────────
+// ─── Safety color map (Higher is safer) ──────────────────────
 function safetyColor(score) {
-  if (score <= 0.30) return "#22c55e"; // green
-  if (score <= 0.55) return "#f59e0b"; // amber
-  return "#ef4444";                    // red
-}
-
-function safetyLabel(score) {
-  if (score <= 0.30) return "safe";
-  if (score <= 0.55) return "moderate";
-  return "unsafe";
+  const s = Number(score) || 0;
+  if (s >= 0.50) return "#22c55e"; // green = safe
+  if (s >= 0.30) return "#f59e0b"; // amber = moderate
+  return "#ef4444";                // red = unsafe
 }
 
 // ─── Auto-fit map bounds when route changes ──────────────────
@@ -27,7 +23,7 @@ function FitBounds({ coords }) {
 }
 
 // ─── Draw one route's segments ───────────────────────────────
-function RouteLayer({ routeData, colorOverride }) {
+function RouteLayer({ routeData, colorOverride, isDashed = false }) {
   if (!routeData) return null;
   const segments   = routeData.segments   ?? [];
   const pathCoords = routeData.pathCoords ?? [];
@@ -39,68 +35,79 @@ function RouteLayer({ routeData, colorOverride }) {
         const toCoord   = pathCoords.find((c) => c.id === seg.to);
         if (!fromCoord || !toCoord) return null;
 
-        // If colorOverride is provided (e.g. blue for shortest) use it,
-        // otherwise fall back to per-segment safety colour.
         const color = colorOverride ?? safetyColor(seg.safetyScore);
         const positions = [
           [fromCoord.lat, fromCoord.lng],
           [toCoord.lat,   toCoord.lng],
         ];
 
+        const riskVal = seg.risk ?? seg.crime ?? 0;
+
         return (
           <Polyline
-            key={i}
+            key={`${seg.from}-${seg.to}-${i}`}
             positions={positions}
             pathOptions={{
               color,
-              weight: 6,
-              opacity: 0.85,
+              weight: colorOverride ? 4 : 6,
+              opacity: colorOverride ? 0.75 : 0.90,
               lineCap: "round",
               lineJoin: "round",
-              dashArray: colorOverride ? "8 6" : null, // dashed for shortest
+              dashArray: isDashed ? "8 6" : null,
             }}
           >
             <Popup>
-              <div>
-                <strong style={{ fontSize: 13 }}>
+              <div style={{ minWidth: 190 }}>
+                <strong style={{ fontSize: 13, color: "#0f172a" }}>
                   {seg.fromName} → {seg.toName}
                 </strong>
-                <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ color: "#94a3b8" }}>Distance</span>
-                    <span>{seg.distanceKm} km</span>
+                <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 5 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                    <span style={{ color: "#64748b" }}>Segment Distance</span>
+                    <span style={{ fontWeight: 600 }}>{seg.distanceKm} km</span>
                   </div>
-                  {!colorOverride && (
+
+                  {!colorOverride ? (
                     <>
-                      <div style={{ display: "flex", justifyContent: "space-between" }}>
-                        <span style={{ color: "#94a3b8" }}>Crime</span>
-                        <span style={{ color: safetyColor(seg.crime) }}>{(seg.crime * 10).toFixed(1)}/10</span>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                        <span style={{ color: "#64748b" }}>Lighting</span>
+                        <span style={{ fontWeight: 600, color: barColor(seg.lighting) }}>
+                          {(seg.lighting * 100).toFixed(0)}%
+                        </span>
                       </div>
-                      <div style={{ display: "flex", justifyContent: "space-between" }}>
-                        <span style={{ color: "#94a3b8" }}>Lighting</span>
-                        <span style={{ color: safetyColor(seg.lighting) }}>{(seg.lighting * 10).toFixed(1)}/10</span>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                        <span style={{ color: "#64748b" }}>Crowd / Activity</span>
+                        <span style={{ fontWeight: 600, color: barColor(seg.crowd) }}>
+                          {(seg.crowd * 100).toFixed(0)}%
+                        </span>
                       </div>
-                      <div style={{ display: "flex", justifyContent: "space-between" }}>
-                        <span style={{ color: "#94a3b8" }}>Crowd</span>
-                        <span style={{ color: safetyColor(seg.crowd) }}>{(seg.crowd * 10).toFixed(1)}/10</span>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                        <span style={{ color: "#64748b" }}>Risk Proximity</span>
+                        <span style={{ fontWeight: 600, color: riskBarColor(riskVal) }}>
+                          {(riskVal * 100).toFixed(0)}%
+                        </span>
                       </div>
                       <div
                         style={{
                           marginTop: 6,
-                          padding: "4px 10px",
-                          borderRadius: 99,
+                          padding: "4px 8px",
+                          borderRadius: 6,
                           background: `${color}22`,
-                          border: `1px solid ${color}55`,
+                          border: `1px solid ${color}66`,
                           color,
                           textAlign: "center",
                           fontWeight: 700,
-                          fontSize: 12,
+                          fontSize: 11,
                           textTransform: "capitalize",
                         }}
                       >
-                        {safetyLabel(seg.safetyScore)} — score {seg.safetyScore}
+                        {safetyLabel(seg.safetyScore)} — Score {(seg.safetyScore * 100).toFixed(0)}/100
                       </div>
                     </>
+                  ) : (
+                    <div style={{ fontSize: 11, color: "#3b82f6", fontWeight: 600 }}>
+                      Shortest Path Segment (Distance Only)
+                    </div>
                   )}
                 </div>
               </div>
@@ -109,34 +116,34 @@ function RouteLayer({ routeData, colorOverride }) {
         );
       })}
 
-      {/* Waypoint circles */}
+      {/* Origin and Destination Waypoint Markers */}
       {pathCoords.map((coord, i) => {
         const isFirst = i === 0;
         const isLast  = i === pathCoords.length - 1;
-        
-        // Only show start and end nodes to avoid map clutter
+
         if (!isFirst && !isLast) return null;
 
-        const color   = isFirst ? "#22c55e" : isLast ? "#ef4444" : (colorOverride ?? "#3b82f6");
-        const radius  = 10;
+        const color  = isFirst ? "#22c55e" : "#ef4444";
+        const label  = isFirst ? "Start: " : "Destination: ";
 
         return (
           <CircleMarker
-            key={coord.id}
+            key={`node-${coord.id}-${i}`}
             center={[coord.lat, coord.lng]}
-            radius={radius}
+            radius={8}
             pathOptions={{
               fillColor: color,
-              color: "#fff",
+              color: "#ffffff",
               weight: 2,
               opacity: 1,
-              fillOpacity: 0.95,
+              fillOpacity: 1,
             }}
           >
             <Popup>
-              <strong>{coord.name}</strong>
-              {isFirst && <div style={{ color: "#22c55e", fontSize: 11, marginTop: 4 }}>📍 Start</div>}
-              {isLast  && <div style={{ color: "#ef4444", fontSize: 11, marginTop: 4 }}>🏁 Destination</div>}
+              <div style={{ fontSize: 12 }}>
+                <strong style={{ color }}>{label}</strong>
+                <span>{coord.name}</span>
+              </div>
             </Popup>
           </CircleMarker>
         );
@@ -145,45 +152,74 @@ function RouteLayer({ routeData, colorOverride }) {
   );
 }
 
-// ─── Map background: default centre over Mumbai ──────────────
 const DEFAULT_CENTER = [19.027, 72.850];
 const DEFAULT_ZOOM   = 14;
 
-// route prop now looks like: { safestRoute: {...}, shortestRoute: {...} }
-// OR legacy flat shape — we handle both for safety.
 export default function MapView({ route, showShortest = true }) {
-  // Support both new dual-route shape and old flat shape
   const safest   = route?.safestRoute   ?? (route?.segments ? route : null);
   const shortest = route?.shortestRoute ?? null;
 
-  // Use safest route's coords for auto-fit
-  const fitCoords = safest?.pathCoords ?? shortest?.pathCoords ?? [];
+  // Use all coordinates for bounds fitting
+  const fitCoords = safest?.pathCoords?.length
+    ? safest.pathCoords
+    : (shortest?.pathCoords ?? []);
 
   return (
-    <MapContainer
-      center={DEFAULT_CENTER}
-      zoom={DEFAULT_ZOOM}
-      style={{ height: "100%", width: "100%" }}
-      zoomControl={true}
-    >
-      {/* Map tiles */}
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
+    <div style={{ position: "relative", height: "100%", width: "100%" }}>
+      <MapContainer
+        center={DEFAULT_CENTER}
+        zoom={DEFAULT_ZOOM}
+        style={{ height: "100%", width: "100%" }}
+        zoomControl={true}
+      >
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
 
-      {/* Auto-fit */}
-      {fitCoords.length > 1 && <FitBounds coords={fitCoords} />}
+        {fitCoords.length > 1 && <FitBounds coords={fitCoords} />}
 
-      {/* Shortest route — dashed blue (drawn first so safest renders on top) */}
-      {showShortest && shortest && (
-        <RouteLayer routeData={shortest} colorOverride="#3b82f6" />
-      )}
+        {/* Shortest route rendered as dashed blue line */}
+        {showShortest && shortest && (
+          <RouteLayer routeData={shortest} colorOverride="#3b82f6" isDashed={true} />
+        )}
 
-      {/* Safest route — colour-coded by safety score */}
-      {safest && (
-        <RouteLayer routeData={safest} colorOverride={null} />
-      )}
-    </MapContainer>
+        {/* Safest route rendered with safety-weighted colors */}
+        {safest && (
+          <RouteLayer routeData={safest} colorOverride={null} isDashed={false} />
+        )}
+      </MapContainer>
+
+      {/* Floating Route Legend */}
+      <div className="map-legend">
+        <div className="map-legend-title">Route Safety</div>
+        <div className="map-legend-row">
+          <span className="map-legend-line" style={{ background: "#22c55e" }} />
+          <span>Well-lit / Safe (&gt;50%)</span>
+        </div>
+        <div className="map-legend-row">
+          <span className="map-legend-line" style={{ background: "#f59e0b" }} />
+          <span>Moderate (30–49%)</span>
+        </div>
+        <div className="map-legend-row">
+          <span className="map-legend-line" style={{ background: "#ef4444" }} />
+          <span>Elevated Risk (&lt;30%)</span>
+        </div>
+        {shortest && (
+          <div className="map-legend-row">
+            <span
+              className="map-legend-line"
+              style={{
+                background: "transparent",
+                borderTop: "2px dashed #3b82f6",
+                height: 0,
+                marginTop: 2,
+              }}
+            />
+            <span style={{ color: "#93c5fd" }}>Direct (Shortest)</span>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

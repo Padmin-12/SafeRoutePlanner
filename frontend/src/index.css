@@ -166,8 +166,9 @@ html, body, #root {
 .dot-start  { background: var(--safe); box-shadow: 0 0 6px var(--safe); }
 .dot-end    { background: var(--unsafe); box-shadow: 0 0 6px var(--unsafe); }
 
-select {
+select, input[type="text"] {
   width: 100%;
+  box-sizing: border-box;
   padding: 10px 14px;
   border-radius: 10px;
   border: 1px solid var(--border);
@@ -176,19 +177,18 @@ select {
   font-family: inherit;
   font-size: 13px;
   outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+select {
   appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2394a3b8' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 12px center;
   cursor: pointer;
-  transition: border-color 0.2s, box-shadow 0.2s;
-  input[type="text"] {
-  width: 100%;
-  box-sizing: border-box;
-}
 }
 
-select:focus {
+select:focus, input[type="text"]:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-glow);
 }
@@ -196,6 +196,184 @@ select:focus {
 select option { background: #111d35; }
 
 .field-gap { margin-top: 14px; }
+
+/* Subtle sample route chips */
+.preset-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.preset-chip {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  padding: 4px 10px;
+  font-size: 11px;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.preset-chip:hover {
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.35);
+  color: #93c5fd;
+}
+
+.preset-chip.active {
+  background: rgba(59, 130, 246, 0.18);
+  border-color: rgba(59, 130, 246, 0.5);
+  color: #60a5fa;
+  font-weight: 600;
+}
+
+/* ── Travel Mode Toggle ── */
+.mode-toggle {
+  display: flex;
+  background: rgba(13, 21, 38, 0.7);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 3px;
+  margin-bottom: 16px;
+  gap: 4px;
+}
+
+.mode-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mode-btn:hover:not(.active) {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.mode-btn.active {
+  background: var(--brand-600);
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+}
+
+/* ── Swap button & Quick Landmark Select ── */
+.field-action-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 6px 0;
+}
+
+.swap-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 5px 10px;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.15s ease;
+}
+
+.swap-btn:hover {
+  color: var(--accent);
+  border-color: rgba(59, 130, 246, 0.35);
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.landmark-select {
+  font-size: 11px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+  color: #94a3b8;
+  max-width: 190px;
+}
+
+/* ── Driver / Passenger Advisory ── */
+.driver-advisory {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  font-size: 12px;
+  line-height: 1.5;
+  color: #bfdbfe;
+  margin-top: 14px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+/* Accordion sections for progressive disclosure */
+.accordion-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  text-align: left;
+}
+
+.accordion-header:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.accordion-header svg.chevron {
+  transition: transform 0.2s ease;
+  color: #64748b;
+}
+
+.accordion-header.open svg.chevron {
+  transform: rotate(180deg);
+  color: var(--accent);
+}
+
+.accordion-body {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(13, 21, 38, 0.4);
+}
+
+.safety-disclaimer {
+  padding: 14px 20px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: #64748b;
+  border-top: 1px solid var(--border);
+  background: rgba(10, 15, 30, 0.5);
+}
 
 /* ══════════════════════════════════════════
    BUTTONS
@@ -415,6 +593,45 @@ select option { background: #111d35; }
 }
 
 .map-hint strong { color: var(--text-primary); }
+
+.map-legend {
+  position: absolute;
+  bottom: 24px;
+  left: 16px;
+  z-index: 500;
+  background: rgba(10, 15, 30, 0.88);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 11px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  pointer-events: auto;
+}
+
+.map-legend-title {
+  font-weight: 700;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.map-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  color: var(--text-primary);
+}
+
+.map-legend-line {
+  width: 18px;
+  height: 4px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
 
 /* ══════════════════════════════════════════
    ERROR / EMPTY STATES

@@ -23,3 +23,6 @@ Thumbs.db
 # Jupyter checkpoints
 .ipynb_checkpoints/
 __pycache__/
+cache/
+.pytest_cache/
+backend/data/cache/

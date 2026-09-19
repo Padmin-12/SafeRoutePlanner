@@ -1,212 +1,407 @@
 import { useState } from "react";
-import { safetyClass, safetyLabel, barColor } from "./utils";
+import { safetyClass, safetyLabel, barColor, riskBarColor } from "./utils";
 
-// ─── Safety bar row ───────────────────────────────────────────
-function SafetyBar({ label, value }) {
-  const pct   = Math.round(value * 100);
-  const color = barColor(value);
+// ─── Safety Bar Row ───────────────────────────────────────────
+function FactorBar({ label, desc, value, isRisk = false }) {
+  const pct   = Math.min(100, Math.max(0, Math.round(value * 100)));
+  const color = isRisk ? riskBarColor(value) : barColor(value);
   return (
-    <div className="safety-bar-row">
-      <span className="safety-bar-label">{label}</span>
-      <div className="safety-bar-track">
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+        <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>{label}</span>
+        <span style={{ fontWeight: 700, color }}>{pct}%</span>
+      </div>
+      <div className="safety-bar-track" style={{ height: 6 }}>
         <div
           className="safety-bar-fill"
           style={{ width: `${pct}%`, background: color }}
         />
       </div>
-      <span className="safety-bar-val" style={{ color }}>{pct}%</span>
+      {desc && <div style={{ fontSize: 11, color: "#64748b", marginTop: 3 }}>{desc}</div>}
     </div>
   );
 }
 
-// ─── Segment pill ─────────────────────────────────────────────
+// ─── Segment Pill ─────────────────────────────────────────────
 function SegPill({ score }) {
   const cls = safetyClass(score);
+  const icon = cls === "safe" ? "✓" : cls === "moderate" ? "◈" : "✕";
   return (
     <span className={`seg-pill ${cls}`}>
-      <span>{cls === "safe" ? "✓" : cls === "moderate" ? "◈" : "✕"}</span>
+      <span>{icon}</span>
       {safetyLabel(score)}
     </span>
   );
 }
 
-// ─── Single route detail panel ────────────────────────────────
-function RouteDetail({ routeData, label }) {
-  if (!routeData) return <p style={{ color: "#94a3b8", padding: 16 }}>No {label} data available.</p>;
+// ─── Route Detail View ────────────────────────────────────────
+function RouteDetail({ routeData, isSafest, tradeoff, travelMode = "cab", onTravelModeChange }) {
+  const [showFactors, setShowFactors] = useState(true);
+  const [showSteps, setShowSteps] = useState(false);
 
-  const cls         = safetyClass(routeData.avgSafetyScore);
-  const emoji       = cls === "safe" ? "🟢" : cls === "moderate" ? "🟡" : "🔴";
-  const avgCrime    = avg(routeData.segments, "crime");
+  if (!routeData) return null;
+
+  const cls = safetyClass(routeData.avgSafetyScore);
+  const emoji = cls === "safe" ? "🟢" : cls === "moderate" ? "🟡" : "🔴";
+
   const avgLighting = avg(routeData.segments, "lighting");
   const avgCrowd    = avg(routeData.segments, "crowd");
+  const avgPolice   = avg(routeData.segments, "police");
+  const avgConn     = avg(routeData.segments, "connectivity");
+  const avgRisk     = avg(routeData.segments, "risk", "crime");
+
+  const estTime = travelMode === "cab"
+    ? (routeData.cabTimeMin ?? Math.max(1, Math.round((routeData.totalDistanceKm / 25) * 60)))
+    : (routeData.walkTimeMin ?? routeData.estimatedTimeMin ?? Math.max(1, Math.round((routeData.totalDistanceKm / 4) * 60)));
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-      {/* Summary card */}
+    <div>
+      {/* Hero Decision Card */}
       <div className="card">
-        <div className="card-title">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-          </svg>
-          {label}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <div className={`result-badge ${cls}`} style={{ margin: 0 }}>
+            {emoji} {routeData.safetyRating}
+          </div>
+
+          {/* Travel Mode Switcher */}
+          {onTravelModeChange && (
+            <div style={{ display: "inline-flex", background: "rgba(255,255,255,0.05)", borderRadius: 8, padding: 2 }}>
+              <button
+                type="button"
+                onClick={() => onTravelModeChange("cab")}
+                style={{
+                  border: "none",
+                  background: travelMode === "cab" ? "var(--brand-600)" : "transparent",
+                  color: travelMode === "cab" ? "#60a5fa" : "#94a3b8",
+                  padding: "4px 8px",
+                  borderRadius: 6,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                🛺 Cab / Auto
+              </button>
+              <button
+                type="button"
+                onClick={() => onTravelModeChange("walk")}
+                style={{
+                  border: "none",
+                  background: travelMode === "walk" ? "var(--brand-600)" : "transparent",
+                  color: travelMode === "walk" ? "#22c55e" : "#94a3b8",
+                  padding: "4px 8px",
+                  borderRadius: 6,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                🚶‍♀️ Walk
+              </button>
+            </div>
+          )}
         </div>
 
-        <div className={`result-badge ${cls}`}>
-          {emoji} {routeData.safetyRating} Route
-        </div>
+        {/* Primary Travel Decision Metrics */}
+        <div className="stat-grid" style={{ gridTemplateColumns: "1.2fr 1fr 1fr", marginBottom: 14 }}>
+          <div className="stat-box">
+            <span className="stat-label">Safety Score</span>
+            <span className="stat-value" style={{ color: barColor(routeData.avgSafetyScore) }}>
+              {(routeData.avgSafetyScore * 100).toFixed(0)}
+            </span>
+            <span className="stat-unit">/ 100</span>
+          </div>
 
-        <div className="stat-grid">
           <div className="stat-box">
             <span className="stat-label">Distance</span>
             <span className="stat-value">{routeData.totalDistanceKm}</span>
             <span className="stat-unit">km</span>
           </div>
+
           <div className="stat-box">
-            <span className="stat-label">Est. Time</span>
-            <span className="stat-value">{routeData.estimatedTimeMin}</span>
+            <span className="stat-label">{travelMode === "cab" ? "Est. Drive" : "Est. Walk"}</span>
+            <span className="stat-value">{estTime}</span>
             <span className="stat-unit">min</span>
           </div>
-          <div className="stat-box">
-            <span className="stat-label">Safety Score</span>
-            <span className="stat-value" style={{ color: barColor(routeData.avgSafetyScore) }}>
-              {((1 - routeData.avgSafetyScore) * 100).toFixed(0)}
-            </span>
-            <span className="stat-unit">/ 100</span>
-          </div>
-          <div className="stat-box">
-            <span className="stat-label">Stops</span>
-            <span className="stat-value">{routeData.path?.length ?? "—"}</span>
-            <span className="stat-unit">waypoints</span>
-          </div>
         </div>
 
-        <div className="safety-bars">
-          <SafetyBar label="Crime"    value={avgCrime}    />
-          <SafetyBar label="Lighting" value={avgLighting} />
-          <SafetyBar label="Crowd"    value={avgCrowd}    />
-        </div>
+        {/* Real-world Travel Guidance Banner */}
+        {travelMode === "cab" ? (
+          <div className="driver-advisory" style={{ marginTop: 0, marginBottom: 14 }}>
+            <span style={{ fontSize: 18, lineHeight: 1 }}>🛺</span>
+            <div>
+              <strong style={{ color: "#93c5fd" }}>Passenger Guide (Cab / Auto):</strong>
+              <div style={{ marginTop: 2, fontSize: 11, lineHeight: 1.4 }}>
+                Show this route to your auto or cab driver. It keeps strictly to wide, well-lit arterial avenues with active commercial surveillance, avoiding dark shortcuts and unmonitored backroads.
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div
+            className="driver-advisory"
+            style={{
+              marginTop: 0,
+              marginBottom: 14,
+              background: "rgba(34, 197, 94, 0.08)",
+              borderColor: "rgba(34, 197, 94, 0.25)",
+              color: "#bbf7d0",
+            }}
+          >
+            <span style={{ fontSize: 18, lineHeight: 1 }}>🚶‍♀️</span>
+            <div>
+              <strong style={{ color: "#86efac" }}>Pedestrian Guide:</strong>
+              <div style={{ marginTop: 2, fontSize: 11, lineHeight: 1.4 }}>
+                Follow illuminated sidewalks along main streets with open shops, transit hubs, and pedestrian activity.
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Clear Trade-Off Summary Callout */}
+        {isSafest && tradeoff && (
+          <div style={{
+            padding: "12px 14px",
+            borderRadius: 10,
+            background: tradeoff.isSameRoute ? "rgba(59, 130, 246, 0.08)" : "rgba(34, 197, 94, 0.08)",
+            border: tradeoff.isSameRoute ? "1px solid rgba(59, 130, 246, 0.25)" : "1px solid rgba(34, 197, 94, 0.25)",
+            fontSize: 12,
+            lineHeight: 1.6,
+            color: "#e2e8f0"
+          }}>
+            <div style={{ fontWeight: 700, color: tradeoff.isSameRoute ? "#60a5fa" : "#22c55e", marginBottom: 4 }}>
+              {tradeoff.isSameRoute ? "✓ Direct Route is Already the Safest" : "🛡️ Compared with the Direct Route"}
+            </div>
+
+            {tradeoff.isSameRoute ? (
+              <div style={{ color: "#94a3b8" }}>
+                The shortest route naturally follows well-lit arterial streets. No detour is required.
+              </div>
+            ) : (
+              <div>
+                Adds <strong>+{tradeoff.distanceDeltaKm} km</strong> ({tradeoff.distanceDeltaPct > 0 ? `+${tradeoff.distanceDeltaPct}%` : "minor"} distance) for a <strong>+{tradeoff.safetyImprovementPct}%</strong> safety score improvement
+                {travelMode === "cab" ? (
+                  tradeoff.cabTimeDeltaMin > 0 ? ` (+${tradeoff.cabTimeDeltaMin} min drive)` : " (same drive time)"
+                ) : (
+                  tradeoff.timeDeltaMin > 0 ? ` (+${tradeoff.timeDeltaMin} min walking)` : " (same walking time)"
+                )}.
+                {tradeoff.riskySegmentsAvoided > 0 && (
+                  <div style={{ color: "#4ade80", marginTop: 4, fontWeight: 600 }}>
+                    ✓ Successfully avoids {tradeoff.riskySegmentsAvoided} poorly-lit or isolated street segment{tradeoff.riskySegmentsAvoided > 1 ? "s" : ""}.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {!isSafest && (
+          <div style={{
+            padding: "10px 14px",
+            borderRadius: 10,
+            background: "rgba(245, 158, 11, 0.08)",
+            border: "1px solid rgba(245, 158, 11, 0.2)",
+            fontSize: 12,
+            lineHeight: 1.5,
+            color: "#fde68a"
+          }}>
+            <strong>Direct route trade-off:</strong> This path saves distance and travel time, but passes through road segments with lower illumination or activity.
+          </div>
+        )}
       </div>
 
-      {/* Route waypoints */}
-      <div className="card">
-        <div className="card-title">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/>
+      {/* Progressive Disclosure Section 1: Why is this route safer? */}
+      <div>
+        <button
+          type="button"
+          className={`accordion-header ${showFactors ? "open" : ""}`}
+          onClick={() => setShowFactors(!showFactors)}
+        >
+          <span>Why is this route considered {routeData.safetyRating.toLowerCase()}?</span>
+          <svg className="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <polyline points="6 9 12 15 18 9"/>
           </svg>
-          Route Path
-        </div>
+        </button>
 
-        <div className="path-steps">
-          {(routeData.path ?? []).map((nodeId, i) => {
-            const isFirst = i === 0;
-            const isLast  = i === routeData.path.length - 1;
-            const seg     = i < routeData.segments.length ? routeData.segments[i] : null;
+        {showFactors && (
+          <div className="accordion-body">
+            <FactorBar
+              label="Street Illumination"
+              desc="Street lamp coverage & well-lit main arterial avenues"
+              value={avgLighting}
+            />
+            <FactorBar
+              label="Natural Surveillance / Activity"
+              desc="Pedestrian presence, open shops, cafes & active amenities"
+              value={avgCrowd}
+            />
+            <FactorBar
+              label="Police Proximity"
+              desc="Proximity to local police stations along the path"
+              value={avgPolice}
+            />
+            <FactorBar
+              label="Road Connectivity"
+              desc="Well-connected intersections with clear sightlines"
+              value={avgConn}
+            />
+            <FactorBar
+              label="Hazard Exposure"
+              desc="Proximity to unmonitored or industrial areas (lower is better)"
+              value={avgRisk}
+              isRisk={true}
+            />
+          </div>
+        )}
+      </div>
 
-            return (
-              <div key={nodeId} className="path-node">
-                <div className={`path-node-dot ${isFirst ? "first" : isLast ? "last" : ""}`} />
-                <div className="path-node-info">
-                  <div className="path-node-name">
-                    {routeData.pathNames?.[i] ?? nodeId}
-                    {isFirst && <span style={{ marginLeft: 6, fontSize: 10, color: "#22c55e", fontWeight: 700 }}>START</span>}
-                    {isLast  && <span style={{ marginLeft: 6, fontSize: 10, color: "#ef4444", fontWeight: 700 }}>END</span>}
-                  </div>
-                  {seg && (
-                    <div className="path-segment-info">
-                      <span>{seg.distanceKm} km</span>
-                      <SegPill score={seg.safetyScore} />
+      {/* Progressive Disclosure Section 2: Turn-by-turn road segments */}
+      <div>
+        <button
+          type="button"
+          className={`accordion-header ${showSteps ? "open" : ""}`}
+          onClick={() => setShowSteps(!showSteps)}
+        >
+          <span>Turn-by-turn street details ({routeData.segments?.length ?? 0} segments)</span>
+          <svg className="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+
+        {showSteps && (
+          <div className="accordion-body" style={{ padding: 0 }}>
+            <div className="path-steps">
+              {(routeData.segments ?? []).map((seg, i) => {
+                const isFirst = i === 0;
+                const isLast  = i === routeData.segments.length - 1;
+
+                return (
+                  <div key={`${seg.from}-${seg.to}-${i}`} className="path-node" style={{ padding: "10px 20px" }}>
+                    <div className={`path-node-dot ${isFirst ? "first" : isLast ? "last" : ""}`} />
+                    <div className="path-node-info">
+                      <div className="path-node-name">
+                        {seg.fromName} → {seg.toName}
+                        {isFirst && <span style={{ marginLeft: 6, fontSize: 10, color: "#22c55e", fontWeight: 700 }}>START</span>}
+                        {isLast  && <span style={{ marginLeft: 6, fontSize: 10, color: "#ef4444", fontWeight: 700 }}>END</span>}
+                      </div>
+                      <div className="path-segment-info">
+                        <span>{seg.distanceKm} km</span>
+                        <SegPill score={seg.safetyScore} />
+                      </div>
                     </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Honest Relative Safety Framing */}
+      <div className="safety-disclaimer">
+        <strong>ℹ️ Safety Notice:</strong> Safety scores are estimated relative to available Mumbai street options using OpenStreetMap environmental indicators (lighting, commercial activity, police proximity). This is an algorithmic aid and does not guarantee absolute safety. Always stay vigilant and trust your intuition.
       </div>
     </div>
   );
 }
 
-// ─── Main ResultPanel ─────────────────────────────────────────
-export default function ResultPanel({ route }) {
-  const [tab, setTab] = useState("safest");
+// ─── Main ResultPanel Component ───────────────────────────────
+export default function ResultPanel({ route, travelMode = "cab", onTravelModeChange }) {
+  const [activeTab, setActiveTab] = useState("safest");
 
   if (!route) {
     return (
       <div className="empty-state">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 13l4.553 2.276A1 1 0 0021 21.382V10.618a1 1 0 00-.553-.894L15 7m0 13V7m0 0L9 4"/>
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z"/>
+          <circle cx="12" cy="10" r="3"/>
         </svg>
-        <p>Select start and end locations,<br />then click <strong>Find Safe Route</strong>.</p>
+        <p>
+          Enter your Mumbai origin and destination above,<br />
+          then tap <strong>Find Safe Route</strong>.
+        </p>
       </div>
     );
   }
 
-  // Support both new dual-route shape { safestRoute, shortestRoute }
-  // and legacy flat shape (single route object)
   const safest   = route.safestRoute   ?? (route.segments ? route : null);
   const shortest = route.shortestRoute ?? null;
-
-  // If only one route exists (legacy), skip tabs
-  if (!shortest) {
-    return <RouteDetail routeData={safest} label="Safest Route" />;
-  }
+  const tradeoff = route.tradeoff      ?? null;
 
   return (
     <div>
-      {/* Tab bar */}
-      <div style={{
-        display: "flex",
-        borderBottom: "1px solid #1e293b",
-        marginBottom: 0,
-      }}>
-        <button
-          onClick={() => setTab("safest")}
-          style={{
-            flex: 1,
-            padding: "10px 0",
-            background: "none",
-            border: "none",
-            borderBottom: tab === "safest" ? "2px solid #22c55e" : "2px solid transparent",
-            color: tab === "safest" ? "#22c55e" : "#64748b",
-            fontWeight: 600,
-            fontSize: 13,
-            cursor: "pointer",
-            transition: "all 0.15s",
-          }}
-        >
-          🟢 Safest Route
-        </button>
-        <button
-          onClick={() => setTab("shortest")}
-          style={{
-            flex: 1,
-            padding: "10px 0",
-            background: "none",
-            border: "none",
-            borderBottom: tab === "shortest" ? "2px solid #3b82f6" : "2px solid transparent",
-            color: tab === "shortest" ? "#3b82f6" : "#64748b",
-            fontWeight: 600,
-            fontSize: 13,
-            cursor: "pointer",
-            transition: "all 0.15s",
-          }}
-        >
-          🔵 Shortest Route
-        </button>
-      </div>
+      {/* Route Switcher Tabs */}
+      {shortest && (
+        <div style={{
+          display: "flex",
+          borderBottom: "1px solid var(--border)",
+          background: "rgba(13, 21, 38, 0.95)",
+        }}>
+          <button
+            type="button"
+            onClick={() => setActiveTab("safest")}
+            style={{
+              flex: 1,
+              padding: "12px 6px",
+              background: "none",
+              border: "none",
+              borderBottom: activeTab === "safest" ? "2px solid #22c55e" : "2px solid transparent",
+              color: activeTab === "safest" ? "#22c55e" : "#64748b",
+              fontWeight: 700,
+              fontSize: 12,
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+            }}
+          >
+            🛡️ Safer Route ({safest?.safetyRating ?? ""})
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("shortest")}
+            style={{
+              flex: 1,
+              padding: "12px 6px",
+              background: "none",
+              border: "none",
+              borderBottom: activeTab === "shortest" ? "2px solid #3b82f6" : "2px solid transparent",
+              color: activeTab === "shortest" ? "#3b82f6" : "#64748b",
+              fontWeight: 700,
+              fontSize: 12,
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+            }}
+          >
+            📏 Direct Route ({shortest.totalDistanceKm} km)
+          </button>
+        </div>
+      )}
 
-      {tab === "safest"
-        ? <RouteDetail routeData={safest}   label="Safest Route"   />
-        : <RouteDetail routeData={shortest} label="Shortest Route" />
-      }
+      {/* Active Route View */}
+      {activeTab === "safest" ? (
+        <RouteDetail
+          routeData={safest}
+          isSafest={true}
+          tradeoff={tradeoff}
+          travelMode={travelMode}
+          onTravelModeChange={onTravelModeChange}
+        />
+      ) : (
+        <RouteDetail
+          routeData={shortest}
+          isSafest={false}
+          tradeoff={tradeoff}
+          travelMode={travelMode}
+          onTravelModeChange={onTravelModeChange}
+        />
+      )}
     </div>
   );
 }
 
-// ─── Helper ───────────────────────────────────────────────────
-function avg(segments = [], field) {
-  if (!segments.length) return 0;
-  return segments.reduce((s, e) => s + (e[field] ?? 0), 0) / segments.length;
+// Helper to calculate segment averages safely
+function avg(segments = [], field1, field2) {
+  if (!segments || !segments.length) return 0;
+  return segments.reduce((sum, s) => {
+    const val = s[field1] ?? (field2 ? s[field2] : 0) ?? 0;
+    return sum + Number(val);
+  }, 0) / segments.length;
 }
