@@ -16,9 +16,15 @@ import numpy as np
 BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BACKEND_DIR, "data")
 import tempfile
+import osmnx as ox
 
 CACHE_DIR = os.path.join(tempfile.gettempdir(), "saferoute_cache")
 os.makedirs(CACHE_DIR, exist_ok=True)
+
+# Configure OSMnx cache in temp directory to avoid read-only filesystem errors on Vercel
+ox.settings.use_cache = True
+ox.settings.cache_folder = os.path.join(tempfile.gettempdir(), "osmnx_cache")
+os.makedirs(ox.settings.cache_folder, exist_ok=True)
 
 _memory_cache = {}
 CACHE_TTL = 86400  # 24 hours
@@ -108,7 +114,10 @@ def get_or_build_graph(lat: float, lon: float, radius_meters: int = 6000, ox_mod
     if ox_module:
         ox = ox_module
 
-    from backend.engine.scoring import score_road_network
+    try:
+        from backend.engine.scoring import score_road_network
+    except ModuleNotFoundError:
+        from engine.scoring import score_road_network
 
     print(f"Cache miss for key {grid_key} ({lat:.4f}, {lon:.4f}, radius={radius_meters}m) — fetching OSM network...")
     G = ox.graph_from_point((lat, lon), dist=radius_meters, network_type="drive")

@@ -9,7 +9,11 @@ Implements Dijkstra's algorithm over NetworkX road networks to compute:
 
 import networkx as nx
 import numpy as np
-from backend.engine.scoring import get_safety_rating
+
+try:
+    from backend.engine.scoring import get_safety_rating
+except ModuleNotFoundError:
+    from engine.scoring import get_safety_rating
 
 
 def get_node_label(G, node, index: int, total_nodes: int, custom_start: str = None, custom_end: str = None) -> str:

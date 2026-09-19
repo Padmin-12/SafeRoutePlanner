@@ -10,11 +10,23 @@ Main application entry point providing:
 """
 
 import os
+import sys
+import tempfile
 import traceback
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import networkx as nx
 import osmnx as ox
+
+# Ensure backend root is in sys.path so 'engine' can always be imported
+backend_dir = os.path.dirname(os.path.abspath(__file__))
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
+
+# Ensure OSMnx cache does not write to read-only deployment filesystem
+ox.settings.use_cache = True
+ox.settings.cache_folder = os.path.join(tempfile.gettempdir(), "osmnx_cache")
+os.makedirs(ox.settings.cache_folder, exist_ok=True)
 
 try:
     from backend.engine.cache import (
@@ -143,6 +155,8 @@ def resolve_geocode(location_str: str):
         raise ValueError(f"Could not locate '{location_str}'. Please enter a recognizable landmark or address in Mumbai.")
 
 
+@app.route("/", methods=["GET"])
+@app.route("/health", methods=["GET"])
 @app.route("/api/health", methods=["GET"])
 def health():
     """Health check and telemetry endpoint."""
