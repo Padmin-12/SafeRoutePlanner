@@ -16,9 +16,22 @@ from flask_cors import CORS
 import networkx as nx
 import osmnx as ox
 
-from backend.engine.cache import get_or_build_graph, get_bundled_benchmark_graph, _memory_cache
-from backend.engine.routing import compute_dual_routes
-
+try:
+    from backend.engine.cache import (
+        get_or_build_graph,
+        get_bundled_benchmark_graph,
+        _memory_cache,
+    )
+    from backend.engine.routing import compute_dual_routes
+except ModuleNotFoundError as e:
+    if e.name != "backend":
+        raise
+    from engine.cache import (
+        get_or_build_graph,
+        get_bundled_benchmark_graph,
+        _memory_cache,
+    )
+    from engine.routing import compute_dual_routes
 app = Flask(__name__)
 CORS(app)
 
