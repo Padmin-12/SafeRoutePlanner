@@ -307,27 +307,25 @@ backend.engine.scoring
 
 which again failed because `backend` is not available as the top-level package in the Vercel function environment.
 
-## Current status
+## Resolution
 
-This issue has been identified but the complete backend import audit has not yet been performed.
-
-Before the next deployment, the entire backend should be searched for:
-
-```text
-backend.
-```
-
-and all imports should be checked for compatibility with both:
-
-```text
-repository-root execution
-```
-
-and:
-
-```text
-Vercel backend function-root execution
-```
+1. Updated [`backend/engine/routing.py`](file:///d:/Projects/SafeRoutePlanner/backend/engine/routing.py) to use dual fallback:
+   ```python
+   try:
+       from backend.engine.scoring import get_safety_rating
+   except ModuleNotFoundError:
+       from engine.scoring import get_safety_rating
+   ```
+2. Audited and updated [`backend/engine/cache.py`](file:///d:/Projects/SafeRoutePlanner/backend/engine/cache.py) line 111:
+   ```python
+   try:
+       from backend.engine.scoring import score_road_network
+   except ModuleNotFoundError:
+       from engine.scoring import score_road_network
+   ```
+3. Configured OSMnx cache folder (`ox.settings.cache_folder`) to point to writable temporary storage (`tempfile.gettempdir() / "osmnx_cache"`), preventing runtime read-only filesystem errors during dynamic geocoding or Overpass fetches.
+4. Added `backend_dir` to `sys.path` in [`backend/app.py`](file:///d:/Projects/SafeRoutePlanner/backend/app.py) and added `/` and `/health` route aliases.
+5. Deployed in commit `c9afb03`.
 
 ---
 
@@ -406,9 +404,9 @@ Do not assume these all point to the same repository/commit.
 The latest deployment is:
 
 ```text
-Commit: 2e47a41
-Message: Use writable temp directory for Vercel cache
-Status: Ready
+Commit: c9afb03
+Message: Fix backend imports and OSMnx runtime cache for Vercel deployment
+Status: Pushed to main (triggering Vercel build)
 Environment: Production
 ```
 
@@ -419,17 +417,12 @@ Vercel Services Graph confirms:
 /(.*)       → frontend (Vite)
 ```
 
-Therefore frontend/backend routing configuration is currently recognized by Vercel.
+Therefore frontend/backend routing configuration is recognized by Vercel.
 
-However, `/api/health` still fails because another backend import remains incompatible:
-
-```text
-backend/engine/routing.py
-    ↓
-from backend.engine.scoring import ...
-    ↓
-ModuleNotFoundError: No module named 'backend'
-```
+The backend import failures and latent read-only filesystem writes have been collectively resolved:
+- `backend/engine/routing.py`: Dual-import fallback for `get_safety_rating`
+- `backend/engine/cache.py`: Dual-import fallback for `score_road_network` and OSMnx cache directory redirection to temp storage
+- `backend/app.py`: `sys.path` backend directory insertion and `/` / `/health` aliases
 
 ---
 
